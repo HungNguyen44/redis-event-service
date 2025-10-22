@@ -2,6 +2,8 @@
 
 namespace Icivi\RedisEventService\Events;
 
+use Carbon\Carbon;
+
 abstract class Event
 {   
     /**
