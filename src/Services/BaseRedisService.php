@@ -4,32 +4,68 @@ namespace Icivi\RedisEventService\Services;
 
 use Icivi\RedisEventService\Events\Event;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Carbon;
 use Icivi\RedisEventService\Services\LoggerService;
 
 abstract class BaseRedisService
 {
     protected LoggerService $logger;
-    public const STREAM_KEY = 'events';
+    protected string $streamKey;
 
     public function __construct(LoggerService $logger)
     {
         $this->logger = $logger;
+        $this->streamKey = Config::get('redis-event.stream_key');
+        $this->defaultConsumer = Config::get('redis-event.default_consumer');
     }
-    abstract public function getGroupName(): string;
-    public const CONSUMER_NAME = 'consumer-1';
+    
+    /**
+     * Get the name of the group
+     * @return string
+     */
+    public function getGroupName(): string
+    {
+        return Config::get('redis-event.default_group');
+    }
+    protected string $defaultConsumer;
+   
+    /**
+     * The batch size for reading events
+     * @var int
+     */
     public const BATCH_SIZE = 10;
 
-    abstract public function getServiceName(): string;
+    /**
+     * Get the name of the service
+     * @return string
+     */
+    public function getServiceName(): string
+    {
+        return Config::get('redis-event.stream_service_name');
+    }
 
+
+    /**
+     * Publish an event to the Redis stream
+     * @param Event $event
+     * @return void
+     */
     public function publish(Event $event): void
     {
-        Redis::xadd(self::STREAM_KEY, '*', [
-            'event' => $event->toJson(),
+        Redis::xadd($this->streamKey, '*', [
+            'type' => $event->getType(),
             'service' => $this->getServiceName(),
-            'createdAt' => now()->format('Y-m-d H:i:s')
+            'payload' => $event->toJson(),
+            'createdAt' => Carbon::now()->format('Y-m-d H:i:s')
         ]);
     }
 
+    /**
+     * Get the unprocessed events
+     * @return array
+     */
     public function getUnprocessedEvents(): array
     {
         $justCreated = $this->createGroupIfNotExists();
@@ -39,28 +75,33 @@ abstract class BaseRedisService
 
         $entries = Redis::xreadgroup(
             $this->getGroupName(),
-            self::CONSUMER_NAME,
-            [self::STREAM_KEY => $offset],
+            $this->defaultConsumer,
+            [$this->streamKey => $offset],
             self::BATCH_SIZE,
             10000 // block 10s
         );
 
-        if (!is_array($entries) || empty($entries[self::STREAM_KEY])) {
+        if (!is_array($entries) || empty($entries[$this->streamKey])) {
             $this->logger->info('No entries returned from XREADGROUP', [
                 'entries' => $entries,
-                'stream' => self::STREAM_KEY
+                'stream' => $this->streamKey
             ]);
             return [];
         }
 
-        return $this->parseEvents($entries[self::STREAM_KEY]);
+        return $this->parseEvents($entries[$this->streamKey]);
     }
 
+    /**
+     * Acknowledge an event
+     * @param string $messageId
+     * @return void
+     */
     public function acknowledge(string $messageId): void
     {
         if (!empty($messageId)) {
             try {
-                Redis::xack(self::STREAM_KEY, $this->getGroupName(), [$messageId]);
+                Redis::xack($this->streamKey, $this->getGroupName(), [$messageId]);
                 $this->logger->info("XACK success", ['id' => $messageId]);
             } catch (\Exception $e) {
                 $this->logger->error("XACK failed", ['id' => $messageId, 'error' => $e->getMessage()]);
@@ -70,12 +111,16 @@ abstract class BaseRedisService
         }
     }
 
+    /**
+     * Create a group if it does not exist
+     * @return bool
+     */
     protected function createGroupIfNotExists(): bool
     {
         try {
-            $groups = Redis::xinfo('GROUPS', self::STREAM_KEY);
+            $groups = Redis::xinfo('GROUPS', $this->streamKey);
 
-            $groupExists = collect($groups)->pluck('name')->contains($this->getGroupName());
+            $groupExists = Collection::make($groups)->pluck('name')->contains($this->getGroupName());
             if ($groupExists) {
                 return false;
             }
@@ -85,9 +130,9 @@ abstract class BaseRedisService
         }
 
         try {
-            Redis::xgroup('CREATE', self::STREAM_KEY, $this->getGroupName(), '0', true);
+            Redis::xgroup('CREATE', $this->streamKey, $this->getGroupName(), '0', true);
             $this->logger->info('✅ Created stream group', [
-                'stream' => self::STREAM_KEY,
+                'stream' => $this->streamKey,
                 'group' => $this->getGroupName()
             ]);
             return true;
@@ -118,7 +163,11 @@ abstract class BaseRedisService
     //     return $result;
     // }
 
-
+    /**
+     * Parse the events from Redis
+     * @param array $eventsFromRedis
+     * @return array
+     */
     protected function parseEvents(array $eventsFromRedis): array
     {
         $result = [];
