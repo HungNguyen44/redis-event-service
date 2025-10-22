@@ -1,0 +1,29 @@
+{
+  "name": "icivi/redis-event-service",
+  "description": "Reusable Redis event-driven package for Laravel microservices",
+  "version": "1.0.0",
+  "authors": [
+    {
+      "name": "Nguyễn Nhật Hùng",
+      "email": "hungnguyen@muha.vn"
+    }
+  ],
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "Icivi\\RedisEventService\\": "src/"
+    }
+  },
+  "require": {
+    "php": "^8.1",
+    "illuminate/support": "^10.0"
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Icivi\\RedisEventService\\RedisEventServiceProvider"
+      ]
+    }
+  }
+}
