@@ -6,21 +6,21 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Illuminate\Filesystem\Filesystem;
 
-class MakeDtoCommand extends Command
+class phpMakeDtoCommand extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'make:dto {name : The name of the DTO class}';
+    protected $signature = 'make:redis-dto {name : The name of the DTO class}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Create a new DTO class that extends BaseDto';
+    protected $description = 'Create a new Redis DTO class that extends BaseDto';
 
     /**
      * The filesystem instance.
@@ -98,7 +98,7 @@ class MakeDtoCommand extends Command
      */
     protected function getPath($name)
     {
-        return app_path('Dto/' . $name . '.php');
+        return app_path('Dtos/' . $name . '.php');
     }
 
     /**
@@ -127,7 +127,7 @@ class MakeDtoCommand extends Command
     {
         $stub = str_replace(
             ['{{ namespace }}'],
-            ['App\\Dto'],
+            ['App\\Dtos'],
             $stub
         );
 

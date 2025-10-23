@@ -2,20 +2,10 @@
 
 namespace {{ namespace }};
 
-use Icivi\RedisEventService\Dto\BaseDto;
+use Icivi\RedisEventService\Dtos\BaseDto;
 
 class {{ class }} extends BaseDto
 {
-    /**
-     * Constructor
-     */
-    public function __construct(
-        // Define your properties here
-        // Example: public string $name,
-        // Example: public ?int $age = null,
-    ) {
-    }
-
     /**
      * Validate data for DTO
      *
@@ -24,7 +14,10 @@ class {{ class }} extends BaseDto
      */
     public static function validateDtoData(BaseDto $data): void
     {
-        // Add validation logic here
+        // Validate required fields
+        if (empty($data->name)) {
+            throw new \InvalidArgumentException('Name is required');
+        }
     }
 
     /**
@@ -35,11 +28,13 @@ class {{ class }} extends BaseDto
      */
     public static function fromArray(array $data): static
     {
-        return new static(
-            // Map array data to constructor parameters
-            // Example: $data['name'] ?? null,
-            // Example: $data['age'] ?? null,
-        );
+        $dto = new static();
+        $dto->id = $data['id'] ?? '';
+        $dto->name = $data['name'] ?? '';
+        $dto->description = $data['description'] ?? '';
+        $dto->data = $data['data'] ?? [];
+        $dto->createdAt = $data['createdAt'] ?? date('Y-m-d H:i:s');
+        return $dto;
     }
 
     /**
@@ -50,9 +45,11 @@ class {{ class }} extends BaseDto
     public function toArray(): array
     {
         return [
-            // Map properties to array
-            // Example: 'name' => $this->name,
-            // Example: 'age' => $this->age,
+            'id' => $this->id,
+            'name' => $this->name,
+            'description' => $this->description,
+            'data' => $this->data,
+            'createdAt' => $this->createdAt
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Icivi\RedisEventService\Services;
 
+use Icivi\RedisEventService\Dto\BaseDto;
 use Icivi\RedisEventService\Events\Event;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Config;
@@ -64,10 +65,10 @@ abstract class BaseRedisService
 
     /**
      * Summary of publishEvent
-     * @param \Icivi\RedisEventService\Events\Event $event
+     * @param \Icivi\RedisEventService\Dto\BaseDto $dto
      * @return void
      */
-    abstract public function publishEvent(Event $event): void;
+    abstract public function publishEvent(BaseDto $dto): void;
 
     /**
      * Publish an event to the Redis stream

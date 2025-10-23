@@ -8,12 +8,6 @@ use Icivi\RedisEventService\Dto\Response\ErrorResponseDto;
 abstract class BaseDto
 {
     /**
-     * Constructor
-     *
-     * @param array $data Data to construct
-     */
-    abstract public function __construct();
-    /**
      * Validate data for DTO
      *
      * @param BaseDto $data Data to validate
