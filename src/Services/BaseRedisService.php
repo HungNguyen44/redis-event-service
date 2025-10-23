@@ -14,13 +14,14 @@ abstract class BaseRedisService
 {
     protected string $timezone;
     protected LoggerService $logger;
-    protected string $streamKey;
-
+    public string $streamKey;
+    public string $deadLetterStreamKey;
     public function __construct(LoggerService $logger)
     {
         $this->logger = $logger;
         $this->streamKey = Config::get('redis-event.stream_key');
         $this->timezone = Config::get('redis-event.timezone');
+        $this->deadLetterStreamKey = Config::get('redis-event.dead_letter_stream_key');
     }
 
     /**
@@ -53,6 +54,27 @@ abstract class BaseRedisService
      */
     abstract public function getBatchSize(): int;
 
+    /**
+     * Get the idle time for claiming events
+     * @example 60000 (60s) - message idle > 60s mới claim
+     * @return int
+     */
+    abstract public function getIdleTime(): int;
+
+    /**
+     * get max auto claim count
+     * @example 50
+     * @return int
+     */
+    abstract public function getMaxAutoClaimCount(): int;
+
+
+    /**
+     * set up max times_delivered to move to dead letter
+     * @example 3
+     * @return int
+     */
+    abstract public function getMaxTimesDelivered(): int;
 
     /**
      * Get the name of the service
@@ -61,6 +83,10 @@ abstract class BaseRedisService
     public function getServiceName(): string
     {
         return Config::get('redis-event.stream_service_name');
+    }
+    public function getStreamKey(): string
+    {
+        return $this->streamKey;
     }
 
     /**
@@ -201,12 +227,131 @@ abstract class BaseRedisService
                 'id' => $messageId,
                 'type' => $fields['type'] ?? null,
                 'service' => $fields['service'] ?? null,
-                'payload' => $fields['payload'] ?? '{}',
+                'payload' => json_decode($fields['payload'] ?? '{}', true),
                 'createdAt' => $fields['createdAt'] ?? null
             ];
         }
 
         $this->logger->info('Parsed events', ['count' => count($result), 'events' => $result]);
         return $result;
+    }
+
+
+
+    /**
+     * XAUTOCLAIM
+     * @param string $messageId
+     * @return void
+     */
+    public function xautoclaimAllPending(): array
+    {
+        try {
+            $client = Redis::connection()->client();
+
+            [$nextId, $messages] = $client->xAutoClaim(
+                $this->streamKey,
+                $this->getGroupName(),
+                $this->getConsumerName(),
+                $this->getIdleTime(), // ví dụ: 60000 ms
+                '0-0',
+                $this->getMaxAutoClaimCount()
+            );
+
+            if (!empty($messages)) {
+                $this->logger->info('XAUTOCLAIM retrieved pending messages', [
+                    'count' => count($messages),
+                    'messages' => $messages,
+                    'next_id' => $nextId
+                ]);
+            } else {
+                $this->logger->info('No pending messages to claim');
+            }
+
+            return [$nextId, $messages];
+        } catch (\Throwable $e) {
+            $this->logger->error('XAUTOCLAIM failed', [
+                'error' => $e->getMessage(),
+                'stream_key' => $this->streamKey,
+                'group_name' => $this->getGroupName(),
+                'consumer_name' => $this->getConsumerName(),
+            ]);
+            return [null, []];
+        }
+    }
+
+    /**
+     * Summary of moveToDeadLetter
+     * @param array $event
+     * @param int $retries
+     * @return void
+     */
+    public function moveToDeadLetter(array $event, int $retries): void
+    {
+        $deadStream =   $this->deadLetterStreamKey;
+
+        $client = Redis::connection()->client();
+
+        $client->xAdd($deadStream, '*', [
+            'original_id' => $event['id'],
+            'type' => $event['type'],
+            'consumer' => $this->getConsumerName(),
+            'service' => $this->getServiceName(),
+            'payload' => $event['payload'],
+            'retries' => $retries,
+            'moved_at' => Carbon::now($this->timezone)->format('Y-m-d H:i:s'),
+        ]);
+
+        $this->logger->warning('☠️ Moved to Dead-letter Stream', [
+            'id' => $event['id'],
+            'stream' => $deadStream,
+            'retries' => $retries
+        ]);
+    }
+
+
+    /**
+     * Summary of getPendingInfo
+     * @param string $messageId
+     * @return array
+     */
+    public function getPendingInfo(string $messageId): array
+    {
+        $client = Redis::connection()->client();
+
+        $info = $client->rawCommand(
+            'XPENDING',
+            $this->getStreamKey(),
+            $this->getGroupName(),
+            $messageId,
+            $messageId,
+            1
+        );
+
+
+        if (empty($info)) {
+            return [];
+        }
+
+        $data = $info[0] ?? [];
+
+        // Check if we have the expected data structure
+        if (empty($data) || !isset($data[0], $data[1], $data[2], $data[3])) {
+            $this->logger->warning('Unexpected XPENDING response format', [
+                'data' => $data
+            ]);
+            return [
+                'message_id' => $data[0] ?? null,
+                'consumer' => $data[1] ?? null,
+                'idle' => $data[2] ?? 0,
+                'times_delivered' => $data[$this->getMaxTimesDelivered()] ?? 0
+            ];
+        }
+
+        return [
+            'message_id' => $data[0],
+            'consumer' => $data[1],
+            'idle' => $data[2],
+            'times_delivered' => $data[$this->getMaxTimesDelivered()]
+        ];
     }
 }
