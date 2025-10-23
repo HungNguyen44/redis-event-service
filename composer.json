@@ -1,7 +1,7 @@
 {
   "name": "icivi/redis-event-service",
   "description": "Reusable Redis event-driven package for Laravel microservices",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "authors": [
     {
       "name": "Nguyễn Nhật Hùng",
