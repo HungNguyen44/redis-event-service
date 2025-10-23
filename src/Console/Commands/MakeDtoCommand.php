@@ -58,10 +58,15 @@ class MakeDtoCommand extends Command
 
         $path = $this->getPath($className);
 
-        // Check if file already exists
-        if ($this->files->exists($path)) {
+        // Check if file already exists and has content
+        if ($this->files->exists($path) && $this->files->size($path) > 0) {
             $this->error("$className already exists!");
             return false;
+        }
+
+        // If file exists but is empty, we'll overwrite it
+        if ($this->files->exists($path) && $this->files->size($path) === 0) {
+            $this->info("$className exists but is empty, will be overwritten.");
         }
 
         // Create directory if it doesn't exist
@@ -69,8 +74,8 @@ class MakeDtoCommand extends Command
 
         // Get stub content and replace placeholders
         $stub = $this->files->get($this->getStub());
-        $stub = $this->replaceNamespace($stub, $className)
-            ->replaceClass($stub, $className);
+        $stub = $this->replaceNamespace($stub, $className);
+        $stub = $this->replaceClass($stub, $className);
 
         // Write the file
         $this->files->put($path, $stub);
@@ -98,7 +103,7 @@ class MakeDtoCommand extends Command
      */
     protected function getPath($name)
     {
-        return app_path('Dtos/' . $name . '.php');
+        return app_path('Dto/' . $name . '.php');
     }
 
     /**
@@ -121,17 +126,15 @@ class MakeDtoCommand extends Command
      *
      * @param  string  $stub
      * @param  string  $name
-     * @return $this
+     * @return string
      */
-    protected function replaceNamespace(&$stub, $name)
+    protected function replaceNamespace($stub, $name)
     {
-        $stub = str_replace(
+        return str_replace(
             ['{{ namespace }}'],
-            ['App\\Dtos'],
+            ['App\\Dto'],
             $stub
         );
-
-        return $this;
     }
 
     /**
@@ -139,12 +142,10 @@ class MakeDtoCommand extends Command
      *
      * @param  string  $stub
      * @param  string  $name
-     * @return $this
+     * @return string
      */
-    protected function replaceClass(&$stub, $name)
+    protected function replaceClass($stub, $name)
     {
-        $stub = str_replace('{{ class }}', $name, $stub);
-
-        return $this;
+        return str_replace('{{ class }}', $name, $stub);
     }
 }

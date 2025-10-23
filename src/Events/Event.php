@@ -3,11 +3,12 @@
 namespace Icivi\RedisEventService\Events;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Config;
 
 abstract class Event
 {
 
-    private string $timezone = Config::get('redis-event.timezone');
+    private string $timezone;
 
     /**
      * Đối tượng dữ liệu cho event
@@ -36,6 +37,7 @@ abstract class Event
     {
         $this->data = $data;
         $this->payload = $data;
+        $this->timezone = Config::get('redis-event.timezone');
     }
 
     /**

@@ -2,7 +2,7 @@
 
 namespace {{ namespace }};
 
-use Icivi\RedisEventService\Dtos\BaseDto;
+use Icivi\RedisEventService\Dto\BaseDto;
 
 class {{ class }} extends BaseDto
 {
@@ -14,10 +14,6 @@ class {{ class }} extends BaseDto
      */
     public static function validateDtoData(BaseDto $data): void
     {
-        // Validate required fields
-        if (empty($data->name)) {
-            throw new \InvalidArgumentException('Name is required');
-        }
     }
 
     /**
@@ -28,13 +24,7 @@ class {{ class }} extends BaseDto
      */
     public static function fromArray(array $data): static
     {
-        $dto = new static();
-        $dto->id = $data['id'] ?? '';
-        $dto->name = $data['name'] ?? '';
-        $dto->description = $data['description'] ?? '';
-        $dto->data = $data['data'] ?? [];
-        $dto->createdAt = $data['createdAt'] ?? date('Y-m-d H:i:s');
-        return $dto;
+        return new self();
     }
 
     /**
@@ -44,12 +34,6 @@ class {{ class }} extends BaseDto
      */
     public function toArray(): array
     {
-        return [
-            'id' => $this->id,
-            'name' => $this->name,
-            'description' => $this->description,
-            'data' => $this->data,
-            'createdAt' => $this->createdAt
-        ];
+        return [];
     }
 }
