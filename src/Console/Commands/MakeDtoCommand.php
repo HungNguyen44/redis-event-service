@@ -6,7 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use Illuminate\Filesystem\Filesystem;
 
-class phpMakeDtoCommand extends Command
+class MakeDtoCommand extends Command
 {
     /**
      * The name and signature of the console command.
