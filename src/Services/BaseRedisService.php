@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 use Icivi\RedisEventService\Services\LoggerService;
 
 abstract class BaseRedisService
-{   
+{
     protected string $timezone;
     protected LoggerService $logger;
     protected string $streamKey;
@@ -196,19 +196,17 @@ abstract class BaseRedisService
         $result = [];
 
         foreach ($eventsFromRedis as $messageId => $fields) {
-            $eventJson = $fields['event'] ?? '{}';
-            $eventData = json_decode($eventJson, true);
-
-            if (is_array($eventData) && isset($eventData['type'])) {
-                $result[] = array_merge($eventData, ['id' => $messageId]);
-            } else {
-                $this->logger->warning('Failed to parse event', [
-                    'id' => $messageId,
-                    'event_json' => $eventJson
-                ]);
-            }
+            // Structure matches what we see in the Redis stream
+            $result[] = [
+                'id' => $messageId,
+                'type' => $fields['type'] ?? null,
+                'service' => $fields['service'] ?? null,
+                'payload' => $fields['payload'] ?? '{}',
+                'createdAt' => $fields['createdAt'] ?? null
+            ];
         }
 
+        $this->logger->info('Parsed events', ['count' => count($result), 'events' => $result]);
         return $result;
     }
 }

@@ -14,6 +14,15 @@ abstract class BaseRedisConsumeCommand extends Command
     protected LoggerService $logger;
 
     /**
+     * Create a new command instance.
+     */
+    public function __construct(LoggerService $logger)
+    {
+        $this->logger = $logger;
+        parent::__construct();
+    }
+
+    /**
      * Get the Redis service instance.
      *
      * @return BaseRedisService
