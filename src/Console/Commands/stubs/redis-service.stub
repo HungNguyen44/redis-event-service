@@ -4,6 +4,7 @@ namespace {{ namespace }};
 
 use Icivi\RedisEventService\Services\BaseRedisService;
 use Icivi\RedisEventService\Services\LoggerService;
+use Icivi\RedisEventService\Events\Event;
 
 class {{ class }} extends BaseRedisService
 {
@@ -11,11 +12,6 @@ class {{ class }} extends BaseRedisService
     protected string $consumerName = '{{ tag_name }}.consumer';
     protected int $blockTime = 10000; // 10 seconds
     protected int $batchSize = 10;
-
-    public function __construct(LoggerService $logger)
-    {
-        parent::__construct($logger);
-    }
 
     /**
      * Get the name of the group
@@ -52,4 +48,16 @@ class {{ class }} extends BaseRedisService
     {
         return $this->batchSize;
     }
+
+    /**
+     * Publish an event
+     * @param Event $event
+     * @return void
+     */
+    public function publishEvent(Event $event): void
+    {
+        $this->publish($event);
+    }
+
+
 }

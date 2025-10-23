@@ -1,8 +1,8 @@
 <?php
 
-namespace Icivi\RedisEventService\Dtos\Response;
+namespace Icivi\RedisEventService\Dto\Response;
 
-use Icivi\RedisEventService\Dtos\BaseDto;
+use Icivi\RedisEventService\Dto\BaseDto;
 use Illuminate\Support\Facades\Validator;
 
 class SuccessResponseDto extends BaseDto

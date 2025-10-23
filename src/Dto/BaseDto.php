@@ -1,13 +1,18 @@
 <?php
 
-namespace Icivi\RedisEventService\Dtos;
+namespace Icivi\RedisEventService\Dto;
 
-use Icivi\RedisEventService\Dtos\Response\SuccessResponseDto;
-use Icivi\RedisEventService\Dtos\Response\ErrorResponseDto;
+use Icivi\RedisEventService\Dto\Response\SuccessResponseDto;
+use Icivi\RedisEventService\Dto\Response\ErrorResponseDto;
 
 abstract class BaseDto
 {
-
+    /**
+     * Constructor
+     *
+     * @param array $data Data to construct
+     */
+    abstract public function __construct();
     /**
      * Validate data for DTO
      *
@@ -65,5 +70,15 @@ abstract class BaseDto
             $statusCode,
             $errors
         );
+    }
+
+    /**
+     * Trả về response JSON từ một DTO
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function toResponse()
+    {
+        return response()->json($this->toArray(), $this->statusCode ?? 200);
     }
 }

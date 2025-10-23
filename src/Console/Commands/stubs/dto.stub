@@ -1,0 +1,58 @@
+<?php
+
+namespace {{ namespace }};
+
+use Icivi\RedisEventService\Dto\BaseDto;
+
+class {{ class }} extends BaseDto
+{
+    /**
+     * Constructor
+     */
+    public function __construct(
+        // Define your properties here
+        // Example: public string $name,
+        // Example: public ?int $age = null,
+    ) {
+    }
+
+    /**
+     * Validate data for DTO
+     *
+     * @param BaseDto $data Data to validate
+     * @return void
+     */
+    public static function validateDtoData(BaseDto $data): void
+    {
+        // Add validation logic here
+    }
+
+    /**
+     * Create DTO object from array
+     *
+     * @param array $data Input data array
+     * @return static
+     */
+    public static function fromArray(array $data): static
+    {
+        return new static(
+            // Map array data to constructor parameters
+            // Example: $data['name'] ?? null,
+            // Example: $data['age'] ?? null,
+        );
+    }
+
+    /**
+     * Convert DTO object to array
+     *
+     * @return array
+     */
+    public function toArray(): array
+    {
+        return [
+            // Map properties to array
+            // Example: 'name' => $this->name,
+            // Example: 'age' => $this->age,
+        ];
+    }
+}

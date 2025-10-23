@@ -5,6 +5,7 @@ namespace Icivi\RedisEventService;
 use Illuminate\Support\ServiceProvider;
 use Icivi\RedisEventService\Services\LoggerService;
 use Icivi\RedisEventService\Console\Commands\MakeRedisServiceCommand;
+use Icivi\RedisEventService\Console\Commands\MakeDtoCommand;
 
 class RedisEventServiceProvider extends ServiceProvider
 {
@@ -17,6 +18,7 @@ class RedisEventServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 MakeRedisServiceCommand::class,
+                MakeDtoCommand::class,
             ]);
         }
     }

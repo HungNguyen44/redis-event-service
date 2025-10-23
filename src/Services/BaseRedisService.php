@@ -11,11 +11,7 @@ use Icivi\RedisEventService\Services\LoggerService;
 
 abstract class BaseRedisService
 {   
-    abstract protected string $groupName;
-    abstract protected string $consumerName;
-    abstract protected int $blockTime;
-    abstract protected int $batchSize;
-
+    protected string $timezone;
     protected LoggerService $logger;
     protected string $streamKey;
 
@@ -23,6 +19,7 @@ abstract class BaseRedisService
     {
         $this->logger = $logger;
         $this->streamKey = Config::get('redis-event.stream_key');
+        $this->timezone = Config::get('redis-event.timezone');
     }
 
     /**
@@ -55,6 +52,7 @@ abstract class BaseRedisService
      */
     abstract public function getBatchSize(): int;
 
+
     /**
      * Get the name of the service
      * @return string
@@ -63,6 +61,13 @@ abstract class BaseRedisService
     {
         return Config::get('redis-event.stream_service_name');
     }
+
+    /**
+     * Summary of publishEvent
+     * @param \Icivi\RedisEventService\Events\Event $event
+     * @return void
+     */
+    abstract public function publishEvent(Event $event): void;
 
     /**
      * Publish an event to the Redis stream
@@ -75,7 +80,7 @@ abstract class BaseRedisService
             'type' => $event->getType(),
             'service' => $this->getServiceName(),
             'payload' => $event->toJson(),
-            'createdAt' => Carbon::now()->format('Y-m-d H:i:s')
+            'createdAt' => Carbon::now($this->timezone)->format('Y-m-d H:i:s')
         ]);
     }
 

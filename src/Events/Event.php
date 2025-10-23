@@ -6,17 +6,60 @@ use Carbon\Carbon;
 
 abstract class Event
 {
+
+    private string $timezone = Config::get('redis-event.timezone');
+
+    /**
+     * Đối tượng dữ liệu cho event
+     * @var object
+     */
+    protected object $data;
+
+    /**
+     * Payload của event
+     * @var object
+     */
+    protected object $payload;
+
+    /**
+     * Loại event
+     * @var string
+     */
+    protected string $eventType;
+
+    /**
+     * Constructor
+     *
+     * @param object $data Đối tượng dữ liệu
+     */
+    public function __construct(object $data)
+    {
+        $this->data = $data;
+        $this->payload = $data;
+    }
+
     /**
      * Get the type of the event
      * @return string
      */
-    abstract public function getType(): string;
+    public function getType(): string
+    {
+        return $this->eventType;
+    }
 
     /**
      * Get the payload of the event
      * @return array
      */
-    abstract public function getPayload(): array;
+    public function getPayload(): array
+    {
+        if (method_exists($this->data, 'toArray')) {
+            return $this->data->toArray();
+        }
+
+        // Fallback nếu đối tượng không có phương thức toArray()
+        return (array) $this->data;
+    }
 
     /**
      * Convert the event to a JSON string
@@ -27,7 +70,7 @@ abstract class Event
         return json_encode([
             'type' => $this->getType(),
             'payload' => $this->getPayload(),
-            'createdAt' => Carbon::now('Asia/Ho_Chi_Minh')->format('Y-m-d H:i:s')
+            'createdAt' => Carbon::now($this->timezone)->format('Y-m-d H:i:s')
         ]);
     }
 }
