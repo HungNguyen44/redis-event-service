@@ -343,7 +343,7 @@ abstract class BaseRedisService
                 'message_id' => $data[0] ?? null,
                 'consumer' => $data[1] ?? null,
                 'idle' => $data[2] ?? 0,
-                'times_delivered' => $data[$this->getMaxTimesDelivered()] ?? 0
+                'times_delivered' => $data[3] ?? 0
             ];
         }
 
@@ -351,7 +351,7 @@ abstract class BaseRedisService
             'message_id' => $data[0],
             'consumer' => $data[1],
             'idle' => $data[2],
-            'times_delivered' => $data[$this->getMaxTimesDelivered()]
+            'times_delivered' => $data[3] ?? 0
         ];
     }
 }

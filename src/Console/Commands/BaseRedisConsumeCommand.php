@@ -70,7 +70,7 @@ abstract class BaseRedisConsumeCommand extends Command
             $timesDelivered = $pendingInfo['times_delivered'] ?? 0;
 
             // 🔸 Nếu vượt ngưỡng retry cho phép
-            if ($timesDelivered >= 3) {
+            if ($timesDelivered >= $redis->getMaxTimesDelivered()) {
                 $redis->moveToDeadLetter($event, $timesDelivered);
                 $redis->acknowledge($event['id']); // xóa khỏi pending
                 continue;
