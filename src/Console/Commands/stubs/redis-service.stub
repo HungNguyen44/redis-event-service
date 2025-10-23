@@ -1,0 +1,55 @@
+<?php
+
+namespace {{ namespace }};
+
+use Icivi\RedisEventService\Services\BaseRedisService;
+use Icivi\RedisEventService\Services\LoggerService;
+
+class {{ class }} extends BaseRedisService
+{
+    protected string $groupName = '{{ tag_name }}.group';
+    protected string $consumerName = '{{ tag_name }}.consumer';
+    protected int $blockTime = 10000; // 10 seconds
+    protected int $batchSize = 10;
+
+    public function __construct(LoggerService $logger)
+    {
+        parent::__construct($logger);
+    }
+
+    /**
+     * Get the name of the group
+     * @return string
+     */
+    public function getGroupName(): string
+    {
+        return $this->groupName;
+    }
+
+    /**
+     * Get the name of the consumer
+     * @return string
+     */
+    public function getConsumerName(): string
+    {
+        return $this->consumerName;
+    }
+
+    /**
+     * Get the block time for reading events
+     * @return int
+     */
+    public function getBlockTime(): int
+    {
+        return $this->blockTime;
+    }
+
+    /**
+     * Get the batch size for reading events
+     * @return int
+     */
+    public function getBatchSize(): int
+    {
+        return $this->batchSize;
+    }
+}

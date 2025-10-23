@@ -10,7 +10,12 @@ use Illuminate\Support\Carbon;
 use Icivi\RedisEventService\Services\LoggerService;
 
 abstract class BaseRedisService
-{
+{   
+    abstract protected string $groupName;
+    abstract protected string $consumerName;
+    abstract protected int $blockTime;
+    abstract protected int $batchSize;
+
     protected LoggerService $logger;
     protected string $streamKey;
 
@@ -18,24 +23,37 @@ abstract class BaseRedisService
     {
         $this->logger = $logger;
         $this->streamKey = Config::get('redis-event.stream_key');
-        $this->defaultConsumer = Config::get('redis-event.default_consumer');
     }
-    
+
     /**
      * Get the name of the group
+     * @example '<service_name>.<environment>.<purpose>.<version>'
+     * @example 'order.local.process.v1'
      * @return string
      */
-    public function getGroupName(): string
-    {
-        return Config::get('redis-event.default_group');
-    }
-    protected string $defaultConsumer;
-   
+    abstract public function getGroupName(): string;
+
+    /**
+     * Get the name of the consumer
+     * @example '<service_name>-<environment>-worker-<worker_version>-<worker_number>'
+     * @example 'order-local-worker-v1-1'
+     * @return string
+     */
+    abstract public function getConsumerName(): string;
+
+    /**
+     * Get the block time for reading events
+     * @example 10000 (10s)
+     * @return int
+     */
+    abstract public function getBlockTime(): int;
+
     /**
      * The batch size for reading events
-     * @var int
+     * @example 10 (10 events)
+     * @return int
      */
-    public const BATCH_SIZE = 10;
+    abstract public function getBatchSize(): int;
 
     /**
      * Get the name of the service
@@ -45,7 +63,6 @@ abstract class BaseRedisService
     {
         return Config::get('redis-event.stream_service_name');
     }
-
 
     /**
      * Publish an event to the Redis stream
@@ -75,10 +92,10 @@ abstract class BaseRedisService
 
         $entries = Redis::xreadgroup(
             $this->getGroupName(),
-            $this->defaultConsumer,
+            $this->getConsumerName(),
             [$this->streamKey => $offset],
-            self::BATCH_SIZE,
-            10000 // block 10s
+            $this->getBatchSize(),
+            $this->getBlockTime()
         );
 
         if (!is_array($entries) || empty($entries[$this->streamKey])) {

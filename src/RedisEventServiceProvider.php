@@ -4,6 +4,7 @@ namespace Icivi\RedisEventService;
 
 use Illuminate\Support\ServiceProvider;
 use Icivi\RedisEventService\Services\LoggerService;
+use Icivi\RedisEventService\Console\Commands\MakeRedisServiceCommand;
 
 class RedisEventServiceProvider extends ServiceProvider
 {
@@ -12,6 +13,12 @@ class RedisEventServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/redis-event.php' => config_path('redis-event.php'),
         ], 'config');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                MakeRedisServiceCommand::class,
+            ]);
+        }
     }
 
     public function register()
