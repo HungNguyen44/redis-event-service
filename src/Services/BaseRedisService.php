@@ -16,12 +16,17 @@ abstract class BaseRedisService
     protected LoggerService $logger;
     public string $streamKey;
     public string $deadLetterStreamKey;
+
+    public string $deadLetterMailGroup;
+    public string $deadLetterMailConsumer;
     public function __construct(LoggerService $logger)
     {
         $this->logger = $logger;
         $this->streamKey = Config::get('redis-event.stream_key');
         $this->timezone = Config::get('redis-event.timezone');
         $this->deadLetterStreamKey = Config::get('redis-event.dead_letter_stream_key');
+        $this->deadLetterMailGroup = Config::get('redis-event.dead_letter_mail_group');
+        $this->deadLetterMailConsumer = Config::get('redis-event.dead_letter_mail_consumer');
     }
 
     /**
@@ -84,6 +89,11 @@ abstract class BaseRedisService
     {
         return Config::get('redis-event.stream_service_name');
     }
+
+    /**
+     * Summary of getStreamKey
+     * @return string
+     */
     public function getStreamKey(): string
     {
         return $this->streamKey;
@@ -117,7 +127,7 @@ abstract class BaseRedisService
      */
     public function getUnprocessedEvents(): array
     {
-        $justCreated = $this->createGroupIfNotExists();
+        $justCreated = $this->createGroupIfNotExistsFromStart();
 
         // Nếu vừa tạo group thì đọc từ '0' để lấy toàn bộ sự kiện cũ, nếu không thì dùng '>'
         $offset = $justCreated ? '0' : '>';
@@ -165,7 +175,7 @@ abstract class BaseRedisService
      * Create a group if it does not exist
      * @return bool
      */
-    protected function createGroupIfNotExists(): bool
+    protected function createGroupIfNotExistsFromStart(): bool
     {
         try {
             $groups = Redis::xinfo('GROUPS', $this->streamKey);
@@ -446,5 +456,119 @@ abstract class BaseRedisService
         }
     }
 
+    /**
+     * Create a group if it does not exist (start reading only from *new* messages)
+     *
+     * @return bool
+     */
+    public function createGroupIfNotExistsFromNow(): bool
+    {
+        try {
+            $groups = Redis::xinfo('GROUPS', $this->streamKey);
+            $groupExists = collect($groups)->pluck('name')->contains($this->getGroupName());
+            if ($groupExists) {
+                return false;
+            }
+        } catch (\Exception $e) {
+            $this->logger->info('No groups found, creating from now.', ['error' => $e->getMessage()]);
+        }
 
+        try {
+            Redis::xgroup('CREATE', $this->streamKey, $this->getGroupName(), '$', true);
+            $this->logger->info('✅ Created group from now ($)', [
+                'stream' => $this->streamKey,
+                'group' => $this->getGroupName()
+            ]);
+            return true;
+        } catch (\Exception $e) {
+            $this->logger->error('❌ Failed to create group from now', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * Read messages from DLQ (for notification/mail purpose)
+     *
+     * @param callable $callback Callback executed for each message: function(array $message): void
+     * @param string|null $groupName Optional group name for DLQ mail listener
+     * @param int $count Max number of messages per batch
+     * @param int $block Block time (ms)
+     * @return void
+     */
+    /**
+     * Consume all DLQ messages (for sending system-wide mail alerts)
+     *
+     * @param callable $callback Function to handle mail send: function(array $message): void
+     * @param int $count Max number of messages per batch
+     * @param int $block Block time (ms)
+     * @return void
+     */
+    public function consumeDeadLetterForMail(callable $callback, int $count = 10, int $block = 5000): void
+    {
+        $deadStream = $this->deadLetterStreamKey;
+        $group = $this->deadLetterMailGroup;
+        $consumer = $this->deadLetterMailConsumer;
+
+        $this->logger->info("📬 Start consuming DLQ (system-wide mail alerts) from stream: {$deadStream}");
+
+        // Ensure DLQ mail consumer group exists (start from now)
+        try {
+            Redis::xgroup('CREATE', $deadStream, $group, '$', true);
+            $this->logger->info("✅ Created DLQ mail group '{$group}' (start from now)");
+        } catch (\Exception $e) {
+            // ignore if already exists
+        }
+
+        while (true) {
+            $entries = Redis::xreadgroup(
+                $group,
+                $consumer,
+                [$deadStream => '>'],
+                $count,
+                $block
+            );
+
+            if (empty($entries[$deadStream])) {
+                continue;
+            }
+
+            foreach ($entries[$deadStream] as $id => $fields) {
+                $message = [
+                    'id'          => $id,
+                    'original_id' => $fields['original_id'] ?? null,
+                    'type'        => $fields['type'] ?? null,
+                    'service'     => $fields['service'] ?? 'unknown',
+                    'consumer'    => $fields['consumer'] ?? 'unknown',
+                    'payload'     => $fields['payload'] ?? '{}',
+                    'retries'     => $fields['retries'] ?? 0,
+                    'moved_at'    => $fields['moved_at'] ?? null,
+                ];
+
+                try {
+                    $this->logger->info("📨 Processing DLQ message for mail", [
+                        'id' => $id,
+                        'type' => $message['type'],
+                        'service' => $message['service']
+                    ]);
+
+                    // Call mail callback
+                    $callback($message);
+
+                    // Acknowledge message
+                    Redis::xack($deadStream, $group, [$id]);
+
+                    $this->logger->info("📧 Mail notification sent for DLQ message", [
+                        'id' => $id,
+                        'service' => $message['service']
+                    ]);
+                } catch (\Throwable $e) {
+                    $this->logger->error("❌ Failed to send DLQ mail", [
+                        'id' => $id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+            }
+        }
+    }
 }
