@@ -133,7 +133,8 @@ abstract class BaseRedisService
         if (!is_array($entries) || empty($entries[$this->streamKey])) {
             $this->logger->info('No entries returned from XREADGROUP', [
                 'entries' => $entries,
-                'stream' => $this->streamKey
+                'stream' => $this->streamKey,
+                'consumer_name' => $this->
             ]);
             return [];
         }
@@ -354,4 +355,96 @@ abstract class BaseRedisService
             'times_delivered' => $data[3] ?? 0
         ];
     }
+
+
+    /******************************************************************************************************************* */
+    /**
+     * Handle Dead Letter Queue (DLQ) messages — for reprocessing or manual handling.
+     *
+     * @param callable $callback Function that receives each message for processing: function(array $message): void
+     * @param string|null $groupName Optionally override consumer group name (default: dead.reprocess.group)
+     * @param int $count Number of messages per batch
+     * @param int $block Block time in milliseconds
+     * @return void
+     */
+    public function processDeadLetterMessages(callable $callback, ?string $groupName = null, int $count = 10, int $block = 10000): void
+    {
+        $deadStream = $this->deadLetterStreamKey;
+        $group = $groupName ?? 'dead.reprocess.group';
+        $consumer = $this->getConsumerName() . '-reprocess';
+        $currentService = $this->getServiceName();
+        $expectedType = $this->getStreamKey();
+
+        $this->logger->info("♻️ Listening DLQ stream: {$deadStream}");
+        $this->logger->info("🔍 Filtering service={$currentService}, type={$expectedType}");
+
+        // Ensure consumer group exists
+        try {
+            Redis::xgroup('CREATE', $deadStream, $group, '0', true);
+        } catch (\Exception $e) {
+            // ignore if group already exists
+        }
+
+        while (true) {
+            $entries = Redis::xreadgroup(
+                $group,
+                $consumer,
+                [$deadStream => '>'],
+                $count,
+                $block
+            );
+
+            if (empty($entries[$deadStream])) {
+                continue;
+            }
+
+            foreach ($entries[$deadStream] as $id => $fields) {
+                $message = [
+                    'id'          => $id,
+                    'original_id' => $fields['original_id'] ?? null,
+                    'type'        => $fields['type'] ?? null,
+                    'service'     => $fields['service'] ?? 'unknown',
+                    'consumer'    => $fields['consumer'] ?? 'unknown',
+                    'payload'     => $fields['payload'] ?? '{}',
+                    'retries'     => $fields['retries'] ?? 0,
+                    'moved_at'    => $fields['moved_at'] ?? null,
+                ];
+
+                // Skip message if service/type mismatch
+                if ($message['service'] !== $currentService || $message['type'] !== $expectedType) {
+                    $this->logger->info("⏭️ Skipping mismatched DLQ message", [
+                        'id' => $id,
+                        'message_service' => $message['service'],
+                        'expected_service' => $currentService,
+                        'message_type' => $message['type'],
+                        'expected_type' => $expectedType,
+                    ]);
+                    Redis::xack($deadStream, $group, [$id]);
+                    continue;
+                }
+
+                try {
+                    $this->logger->info("🔁 Processing DLQ message", [
+                        'id' => $id,
+                        'type' => $message['type'],
+                        'service' => $message['service'],
+                    ]);
+
+                    // Call user callback to handle message
+                    $callback($message);
+
+                    Redis::xack($deadStream, $group, [$id]);
+                    $this->logger->info("✅ DLQ message processed", ['id' => $id]);
+                } catch (\Throwable $e) {
+                    $this->logger->error("❌ DLQ message processing failed", [
+                        'id' => $id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+            }
+        }
+    }
+
+    
 }
