@@ -134,7 +134,7 @@ abstract class BaseRedisService
             $this->logger->info('No entries returned from XREADGROUP', [
                 'entries' => $entries,
                 'stream' => $this->streamKey,
-                'consumer_name' => $this->
+                'consumer_name' => $this->getConsumerName()
             ]);
             return [];
         }
@@ -446,5 +446,5 @@ abstract class BaseRedisService
         }
     }
 
-    
+
 }
